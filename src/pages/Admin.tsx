@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import {
-  Plus, Pencil, Trash2, FileText, FileSpreadsheet, File, Search, LayoutDashboard,
+  Plus, Pencil, Trash2, FileText, File, Search, LayoutDashboard,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -25,6 +25,7 @@ const emptyForm = {
 };
 
 const Admin = () => {
+
   const [students, setStudents] = useState<Student[]>([]);
   const [fetching, setFetching] = useState(true);
   const [search, setSearch] = useState("");
@@ -37,7 +38,10 @@ const Admin = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+
   const [currentPage, setCurrentPage] = useState(1);
+  const [paginate, setPaginate] = useState(false);
+
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -46,7 +50,7 @@ const Admin = () => {
   const fetchStudents = async () => {
     const { data, error } = await supabase
       .from("students")
-      .select("id, full_name, faculty, department, level, mat_number, phone_number, created_at, updated_at")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error) toast.error("Failed to load students");
@@ -71,7 +75,11 @@ const Admin = () => {
     setCurrentPage(1);
   };
 
-  const openAdd = () => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); };
+  const openAdd = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
 
   const openEdit = (s: Student) => {
     setEditingId(s.id);
@@ -87,14 +95,16 @@ const Admin = () => {
   };
 
   const handleSave = async () => {
+
     if (!form.full_name || !form.faculty || !form.department || !form.mat_number || !form.phone_number || (!editingId && (!form.level || isNaN(Number(form.level))))) {
-      toast.error("All fields are required and level must be a number");
+      toast.error("All fields are required");
       return;
     }
 
     setSubmitting(true);
 
     if (editingId) {
+
       const { error } = await supabase
         .from("students")
         .update({
@@ -106,7 +116,7 @@ const Admin = () => {
         })
         .eq("id", editingId);
 
-      if (error) toast.error(error.code === "23505" ? "Mat number already exists" : "Update failed");
+      if (error) toast.error("Update failed");
       else {
         toast.success("Student updated");
         setDialogOpen(false);
@@ -115,29 +125,37 @@ const Admin = () => {
 
     } else {
 
-      const { error } = await supabase.from("students").insert([form]);
+      const { error } = await supabase
+        .from("students")
+        .insert([form]);
 
-      if (error) toast.error(error.code === "23505" ? "Mat number already exists" : "Insert failed");
+      if (error) toast.error("Insert failed");
       else {
         toast.success("Student added");
         setDialogOpen(false);
         fetchStudents();
       }
+
     }
 
     setSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
+
     if (!confirm("Delete this student?")) return;
 
-    const { error } = await supabase.from("students").delete().eq("id", id);
+    const { error } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", id);
 
     if (error) toast.error("Delete failed");
     else {
       toast.success("Student deleted");
       fetchStudents();
     }
+
   };
 
   const filtered = students.filter((s) => {
@@ -156,6 +174,7 @@ const Admin = () => {
     const matchesLevel = levelFilter ? s.level === levelFilter : true;
 
     return matchesSearch && matchesFaculty && matchesDepartment && matchesLevel;
+
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -174,59 +193,89 @@ const Admin = () => {
     if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
 
     return 0;
+
   });
 
-  const totalPages = Math.ceil(sorted.length / itemsPerPage);
+  const totalPages = paginate ? Math.ceil(sorted.length / itemsPerPage) : 1;
 
-  const paginatedStudents = sorted.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedStudents = paginate
+    ? sorted.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    )
+    : sorted;
 
-
-
-
-  const exportPDF = async () => {
-    const { default: jsPDF } = await import("jspdf");
-    const autoTable = (await import("jspdf-autotable")).default;
-    const doc = new jsPDF();
-    autoTable(doc, {
-      head: [["S/N", "Full Name", "Faculty", "Department", "Level", "Mat Number", "Phone"]],
-      body: paginatedStudents.map((s, index) => [(currentPage - 1) * itemsPerPage + index + 1, s.full_name, s.faculty, s.department, s.level, s.mat_number, s.phone_number]),
-    });
-    doc.save("students.pdf");
+  const getSN = (index: number) => {
+    return paginate
+      ? (currentPage - 1) * itemsPerPage + index + 1
+      : index + 1;
   };
 
-  const exportExcel = async () => {
-    const XLSX = await import("xlsx");
-    const ws = XLSX.utils.json_to_sheet(paginatedStudents.map((s, index) => ({
-      "S/N": (currentPage - 1) * itemsPerPage + index + 1,
-      "Full Name": s.full_name, Faculty: s.faculty, Department: s.department, Level: s.level,
-      "Mat Number": s.mat_number, "Phone Number": s.phone_number,
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Students");
-    XLSX.writeFile(wb, "students.xlsx");
+  const exportPDF = async () => {
+
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+
+    const doc = new jsPDF();
+
+    autoTable(doc, {
+      head: [["S/N", "Full Name", "Faculty", "Department", "Level", "Mat Number", "Phone"]],
+      body: paginatedStudents.map((s, index) => [
+        getSN(index),
+        s.full_name,
+        s.faculty,
+        s.department,
+        s.level,
+        s.mat_number,
+        s.phone_number
+      ]),
+    });
+
+    doc.save("students.pdf");
+
   };
 
   const exportWord = async () => {
-    let html = `<html><head><meta charset="utf-8"><title>Students</title></head><body>
-      <h1>Student Records</h1>
-      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
-        <tr><th>S/N</th><th>Full Name</th><th>Faculty</th><th>Department</th><th>Level</th><th>Mat Number</th><th>Phone</th></tr>`;
+
+    let html = `<html><body><h1>Student Records</h1><table border="1" cellpadding="6" cellspacing="0">`;
+
+    html += `<tr>
+    <th>S/N</th>
+    <th>Name</th>
+    <th>Faculty</th>
+    <th>Department</th>
+    <th>Level</th>
+    <th>Mat Number</th>
+    <th>Phone</th>
+    </tr>`;
+
     paginatedStudents.forEach((s, index) => {
-      html += `<tr><td>${(currentPage - 1) * itemsPerPage + index + 1}</td><td>${s.full_name}</td><td>${s.faculty}</td><td>${s.department}</td><td>${s.level}</td><td>${s.mat_number}</td><td>${s.phone_number}</td></tr>`;
+
+      html += `<tr>
+      <td>${getSN(index)}</td>
+      <td>${s.full_name}</td>
+      <td>${s.faculty}</td>
+      <td>${s.department}</td>
+      <td>${s.level}</td>
+      <td>${s.mat_number}</td>
+      <td>${s.phone_number}</td>
+      </tr>`;
+
     });
-    html += `</table></body></html>`;
+
+    html += "</table></body></html>";
+
     const blob = new Blob([html], { type: "application/msword" });
     const { saveAs } = await import("file-saver");
+
     saveAs(blob, "students.doc");
+
   };
 
   if (fetching) {
     return (
       <div className="page-container flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        Loading...
       </div>
     );
   }
@@ -237,24 +286,20 @@ const Admin = () => {
       <div className="admin-header flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LayoutDashboard className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Student Records</h1>
+          <h1 className="text-xl font-bold">Student Records</h1>
         </div>
       </div>
 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
 
-        {/* SEARCH + FILTERS */}
+        <div className="flex flex-wrap gap-2 justify-between">
 
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          <div className="flex flex-wrap gap-2">
 
-          {/* LEFT SIDE : SEARCH + FILTERS */}
-
-          <div className="flex flex-wrap gap-2 w-full">
-
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
               <Input
-                placeholder="Search students..."
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -265,64 +310,54 @@ const Admin = () => {
             </div>
 
             <select
-              className="border rounded px-2 py-1 text-sm"
               value={facultyFilter}
-              onChange={(e) => {
-                setFacultyFilter(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setFacultyFilter(e.target.value)}
+              className="border rounded px-2 py-1 text-sm"
             >
               <option value="">All Faculties</option>
-              {faculties.map((f) => (
-                <option key={f} value={f}>{f}</option>
-              ))}
+              {faculties.map((f) => <option key={f}>{f}</option>)}
             </select>
 
             <select
-              className="border rounded px-2 py-1 text-sm"
               value={departmentFilter}
-              onChange={(e) => {
-                setDepartmentFilter(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="border rounded px-2 py-1 text-sm"
             >
               <option value="">All Departments</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
+              {departments.map((d) => <option key={d}>{d}</option>)}
             </select>
 
             <select
-              className="border rounded px-2 py-1 text-sm"
               value={levelFilter}
-              onChange={(e) => {
-                setLevelFilter(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setLevelFilter(e.target.value)}
+              className="border rounded px-2 py-1 text-sm"
             >
               <option value="">All Levels</option>
-              {levels.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
+              {levels.map((l) => <option key={l}>{l}</option>)}
             </select>
 
           </div>
 
-          {/* RIGHT SIDE : ACTION BUTTONS */}
-
-          <div className="flex gap-2 ">
+          <div className="flex gap-2">
 
             <Button onClick={openAdd} size="sm">
               <Plus className="mr-1 h-4 w-4" /> Add
             </Button>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPaginate(!paginate);
+                setCurrentPage(1);
+              }}
+            >
+              {paginate ? "Show All" : "Paginate (25/page)"}
+            </Button>
+
             <Button variant="outline" size="sm" onClick={exportPDF}>
               <FileText className="mr-1 h-4 w-4" /> PDF
             </Button>
-
-            {/* <Button variant="outline" size="sm" onClick={exportExcel}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button> */}
 
             <Button variant="outline" size="sm" onClick={exportWord}>
               <File className="mr-1 h-4 w-4" /> Word
@@ -332,9 +367,7 @@ const Admin = () => {
 
         </div>
 
-        {/* TABLE */}
-
-        <div className="form-card overflow-x-auto p-0">
+        <div className="form-card overflow-x-auto">
 
           <Table>
 
@@ -355,15 +388,15 @@ const Admin = () => {
 
               {paginatedStudents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
-                    No results found
+                  <TableCell colSpan={8} className="text-center py-10">
+                    No results
                   </TableCell>
                 </TableRow>
               ) : paginatedStudents.map((s, index) => (
 
                 <TableRow key={s.id}>
 
-                  <TableCell>{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
+                  <TableCell>{getSN(index)}</TableCell>
                   <TableCell>{s.full_name}</TableCell>
                   <TableCell>{s.faculty}</TableCell>
                   <TableCell>{s.department}</TableCell>
@@ -375,19 +408,11 @@ const Admin = () => {
 
                     <div className="flex gap-1 justify-end">
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(s)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(s.id)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
 
@@ -405,93 +430,95 @@ const Admin = () => {
 
         </div>
 
-        <div className="flex items-center justify-between mt-4">
+        {paginate && totalPages > 1 && (
 
-          <p className="text-sm text-muted-foreground">
-            Showing {paginatedStudents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
-            {" "}to{" "}
-            {Math.min(currentPage * itemsPerPage, filtered.length)}
-            {" "}of {filtered.length} students
-          </p>
+          <Pagination>
 
-          {totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
+            <PaginationContent>
 
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50 cursor-pointer" : "cursor-pointer"}
-                  />
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                  >
+                    {page}
+                  </PaginationLink>
                 </PaginationItem>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
+              ))}
 
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50 cursor-pointer" : "cursor-pointer"}
-                  />
-                </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                />
+              </PaginationItem>
 
-              </PaginationContent>
-            </Pagination>
-          )}
+            </PaginationContent>
 
-        </div>
+          </Pagination>
+
+        )}
 
       </div>
 
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>{editingId ? "Edit Student" : "Add Student"}</DialogTitle>
-    </DialogHeader>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
 
-    <div className="space-y-4">
-      {([
-        { key: "full_name", label: "Full Name" },
-        { key: "faculty", label: "Faculty" },
-        { key: "department", label: "Department" },
-        { key: "level", label: "Level" },
-        { key: "mat_number", label: "Mat Number" },
-        { key: "phone_number", label: "Phone Number" },
-      ] as const).map(({ key, label }) => (
-        <div key={key} className="space-y-1">
-          <Label htmlFor={`dialog-${key}`}>{label}</Label>
-          <Input
-            id={`dialog-${key}`}
-            type={key === "level" ? "number" : "text"}
-            value={form[key]}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, [key]: e.target.value }))
-            }
-          />
-        </div>
-      ))}
-    </div>
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit Student" : "Add Student"}</DialogTitle>
+          </DialogHeader>
 
-    <DialogFooter>
-      <Button variant="outline" onClick={() => setDialogOpen(false)}>
-        Cancel
-      </Button>
-      <Button onClick={handleSave} disabled={submitting}>
-        {submitting ? "Saving..." : "Save"}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-    
+          <div className="space-y-4">
+
+            {Object.keys(emptyForm).map((key) => (
+
+              <div key={key}>
+
+                <Label>{key.replace("_", " ").toUpperCase()}</Label>
+
+                <Input
+                  type={key === "level" ? "number" : "text"}
+                  value={(form as any)[key]}
+                  onChange={(e) =>
+                    setForm({ ...form, [key]: e.target.value })
+                  }
+                />
+
+              </div>
+
+            ))}
+
+          </div>
+
+          <DialogFooter>
+
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={handleSave}
+              disabled={submitting}
+            >
+              {submitting ? "Saving..." : "Save"}
+            </Button>
+
+          </DialogFooter>
+
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
