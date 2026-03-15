@@ -407,6 +407,46 @@ const Admin = () => {
 
       </div>
 
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit Student" : "Add Student"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {([
+              { key: "full_name", label: "Full Name" },
+              { key: "faculty", label: "Faculty" },
+              { key: "department", label: "Department" },
+              { key: "level", label: "Level" },
+              { key: "mat_number", label: "Mat Number" },
+              { key: "phone_number", label: "Phone Number" },
+            ] as const).map(({ key, label }) => (
+              <div key={key} className="space-y-1">
+                <Label htmlFor={`dialog-${key}`}>{label}</Label>
+                <Input
+                  id={`dialog-${key}`}
+                  type={key === "level" ? "number" : "text"}
+                  value={form[key]}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, [key]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={submitting}>
+              {submitting ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
     </div>
   );
 };
