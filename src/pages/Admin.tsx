@@ -374,7 +374,12 @@ const Admin = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>S/N</TableHead>
-                <TableHead>Full Name</TableHead>
+                <TableHead
+                  onClick={() => handleSort('full_name')}
+                  className="cursor-pointer select-none"
+                >
+                  Full Name
+                </TableHead>
                 <TableHead onClick={() => handleSort('faculty')} className="cursor-pointer">Faculty</TableHead>
                 <TableHead onClick={() => handleSort('department')} className="cursor-pointer">Department</TableHead>
                 <TableHead onClick={() => handleSort('level')} className="cursor-pointer">Level</TableHead>
