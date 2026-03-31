@@ -50,6 +50,81 @@ export type Database = {
         }
         Relationships: []
       }
+      universities: {
+        Row: {
+          academic_session: string
+          created_at: string
+          date_of_birth: string
+          department: string
+          duration_of_course: string
+          email_address: string
+          faculty: string
+          first_name: string
+          gender: string
+          id: string
+          jamb_number: string
+          last_name: string
+          level: string
+          lga: string
+          matric_number: string
+          nin: string
+          other_name: string | null
+          phone_number: string
+          program: string
+          state_of_origin: string
+          total_fees: string
+          updated_at: string
+        }
+        Insert: {
+          academic_session: string
+          created_at?: string
+          date_of_birth: string
+          department: string
+          duration_of_course: string
+          email_address: string
+          faculty: string
+          first_name: string
+          gender: string
+          id?: string
+          jamb_number: string
+          last_name: string
+          level: string
+          lga: string
+          matric_number: string
+          nin: string
+          other_name?: string | null
+          phone_number: string
+          program: string
+          state_of_origin: string
+          total_fees: string
+          updated_at?: string
+        }
+        Update: {
+          academic_session?: string
+          created_at?: string
+          date_of_birth?: string
+          department?: string
+          duration_of_course?: string
+          email_address?: string
+          faculty?: string
+          first_name?: string
+          gender?: string
+          id?: string
+          jamb_number?: string
+          last_name?: string
+          level?: string
+          lga?: string
+          matric_number?: string
+          nin?: string
+          other_name?: string | null
+          phone_number?: string
+          program?: string
+          state_of_origin?: string
+          total_fees?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
